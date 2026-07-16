@@ -76,9 +76,43 @@ export async function getUserEscrowIds(account: string): Promise<bigint[]> {
 }
 
 /** Fetch full escrow records for an account, newest first. */
+export async function fetchEscrowsInBatches<T, R>(
+  ids: T[],
+  worker: (id: T) => Promise<R>,
+  concurrency = 6,
+): Promise<R[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const results = new Array<R | undefined>(ids.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), ids.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (true) {
+        const currentIndex = nextIndex++;
+        if (currentIndex >= ids.length) {
+          return;
+        }
+
+        const id = ids[currentIndex];
+        try {
+          results[currentIndex] = await worker(id);
+        } catch (error) {
+          console.warn("Failed to fetch escrow detail", error);
+        }
+      }
+    }),
+  );
+
+  return results.filter((item): item is R => item !== undefined);
+}
+
 export async function getUserEscrows(account: string): Promise<Escrow[]> {
   const ids = await getUserEscrowIds(account);
-  const escrows = await Promise.all(ids.map((id) => getEscrow(id)));
+  const escrows = await fetchEscrowsInBatches(ids, (id) => getEscrow(id), 6);
   return escrows.sort((a, b) => Number(b.createdAt - a.createdAt));
 }
 
