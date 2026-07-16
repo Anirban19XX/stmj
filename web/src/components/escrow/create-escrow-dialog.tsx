@@ -6,6 +6,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -23,6 +30,7 @@ import { useWallet } from "@/hooks/use-wallet";
 import { useSettingsStore } from "@/stores/settings-store";
 import { config } from "@/lib/stellar/config";
 import { parseAmount, formatAmount } from "@/lib/format";
+import { CUSTOM_TOKEN_VALUE, getTokenOptions, resolveTokenLabel } from "@/lib/stellar/tokens";
 
 const STELLAR_ADDR = /^[GC][A-Z2-7]{55}$/;
 const addr = z.string().regex(STELLAR_ADDR, "Enter a valid Stellar address");
@@ -83,6 +91,11 @@ export function CreateEscrowDialog({ trigger }: { trigger?: React.ReactNode }) {
   });
 
   const milestones = form.watch("milestones");
+  const tokenValue = form.watch("token");
+  const selectedToken = tokenValue && getTokenOptions().some((option) => option.value === tokenValue)
+    ? tokenValue
+    : CUSTOM_TOKEN_VALUE;
+  const tokenHint = resolveTokenLabel(tokenValue);
   const total = milestones.reduce((sum, m) => {
     try {
       return sum + parseAmount(m.amount || "0");
@@ -154,8 +167,43 @@ export function CreateEscrowDialog({ trigger }: { trigger?: React.ReactNode }) {
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Token (SAC) address" error={form.formState.errors.token?.message}>
-              <Input placeholder="C…" {...form.register("token")} />
+            <Field label="Token (SAC)" error={form.formState.errors.token?.message}>
+              <div className="space-y-2">
+                <Select
+                  value={selectedToken}
+                  onValueChange={(value) => {
+                    if (value === CUSTOM_TOKEN_VALUE) {
+                      form.setValue("token", tokenValue || preferredToken || config.defaultTokenId, {
+                        shouldValidate: true,
+                      });
+                      return;
+                    }
+                    form.setValue("token", value, { shouldValidate: true });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a token" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getTokenOptions().map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="C…"
+                  {...form.register("token")}
+                  value={tokenValue || ""}
+                  onChange={(event) => form.setValue("token", event.target.value, { shouldValidate: true })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {tokenHint === "Custom token"
+                    ? "Enter a SEP-41 token contract address or pick a known preset."
+                    : `Using ${tokenHint}.`}
+                </p>
+              </div>
             </Field>
             <Field label="Deadline" error={form.formState.errors.deadline?.message}>
               <Input type="datetime-local" {...form.register("deadline")} />
