@@ -1,0 +1,114 @@
+# Continuous Integration for pull requests.
+#
+# Two independent jobs run in parallel:
+#   * contracts — Rust/Soroban workspace under `contracts/`
+#   * frontend  — Next.js app under `web/`
+#
+# Both must pass before a PR can be merged.
+name: PR
+
+on:
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs for the same PR to save CI minutes.
+concurrency:
+  group: pr-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Soroban smart-contract workspace: format, lint, test and a real WASM build.
+  # ---------------------------------------------------------------------------
+  contracts:
+    name: Contracts (Rust / Soroban)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    env:
+      # Keep Stellar CLI version pinned so CI is reproducible.
+      STELLAR_CLI_VERSION: "22.0.0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable) + wasm target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+          components: rustfmt, clippy
+
+      # Cache the cargo registry, git db and target dir. The key is keyed on the
+      # workspace lockfile so it invalidates when dependencies change.
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            contracts/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # Cache the compiled Stellar CLI binary separately so we don't rebuild it
+      # from source on every run. We restore into ~/.cargo/bin.
+      - name: Cache Stellar CLI
+        id: cache-stellar
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/stellar
+          key: ${{ runner.os }}-stellar-cli-${{ env.STELLAR_CLI_VERSION }}
+
+      - name: Install Stellar CLI
+        if: steps.cache-stellar.outputs.cache-hit != 'true'
+        run: cargo install --locked stellar-cli --version ${{ env.STELLAR_CLI_VERSION }}
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Unit & integration tests
+        run: cargo test
+
+      - name: Build WASM contracts
+        run: stellar contract build
+
+  # ---------------------------------------------------------------------------
+  # Next.js frontend: lint, typecheck and unit tests.
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test

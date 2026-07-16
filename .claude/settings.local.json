@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(rustc --version)",
+      "Bash(cargo --version)",
+      "Bash(stellar --version)",
+      "Bash(soroban --version)",
+      "WebFetch(domain:magicui.design)",
+      "WebFetch(domain:developers.stellar.org)",
+      "Bash(cargo test *)",
+      "Bash(rustup target *)",
+      "Bash(stellar contract *)",
+      "Bash(chmod +x scripts/deploy_testnet.sh scripts/deploy_local.sh scripts/init_contracts.sh scripts/upgrade_contract.sh scripts/gen_bindings.sh)",
+      "Bash(npm run *)",
+      "Bash(./scripts/deploy_testnet.sh)"
+    ]
+  }
+}

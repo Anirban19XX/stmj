@@ -1,0 +1,22 @@
+[package]
+name = "aegis-escrow"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+description = "Aegis Escrow: milestone-based, dispute-resolved escrow core for the Aegis marketplace."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+# Only used by the integration tests, which register the real Registry contract
+# in the test host. Kept out of the production [dependencies] so its exported
+# WASM symbols are never linked into the escrow cdylib.
+aegis-registry = { path = "../registry", features = ["testutils"] }

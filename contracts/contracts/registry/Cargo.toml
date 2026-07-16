@@ -1,0 +1,23 @@
+[package]
+name = "aegis-registry"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+description = "Aegis Registry: on-chain reputation registry and platform treasury for the Aegis escrow marketplace."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[features]
+# Enables soroban testutils so dependent crates (e.g. the escrow contract) can
+# register this contract inside their own integration tests.
+testutils = ["soroban-sdk/testutils"]
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
