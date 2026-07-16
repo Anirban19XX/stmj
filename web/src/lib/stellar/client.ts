@@ -35,6 +35,52 @@ const READ_PUBKEY = Keypair.random().publicKey();
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+export interface TransactionPreview {
+  baseFee: string;
+  resourceFee: string;
+  estimatedFee: string;
+  instructions: number;
+  readBytes: number;
+  writeBytes: number;
+  footprintEntries: number;
+}
+
+export function buildTransactionPreview(
+  simulation: {
+    minResourceFee?: string;
+    transactionData?: {
+      resources?: {
+        instructions?: number;
+        readBytes?: number;
+        writeBytes?: number;
+        footprint?: {
+          readOnly?: unknown[];
+          readWrite?: unknown[];
+        };
+      };
+    };
+  },
+  baseFee: string = BASE_FEE.toString(),
+): TransactionPreview {
+  const resourceFee = BigInt(simulation.minResourceFee ?? "0");
+  const baseFeeValue = BigInt(baseFee ?? "0");
+  const resources = simulation.transactionData?.resources ?? {};
+  const footprint = resources.footprint ?? {};
+  const footprintEntries =
+    (Array.isArray(footprint.readOnly) ? footprint.readOnly.length : 0) +
+    (Array.isArray(footprint.readWrite) ? footprint.readWrite.length : 0);
+
+  return {
+    baseFee: baseFeeValue.toString(),
+    resourceFee: resourceFee.toString(),
+    estimatedFee: (baseFeeValue + resourceFee).toString(),
+    instructions: resources.instructions ?? 0,
+    readBytes: resources.readBytes ?? 0,
+    writeBytes: resources.writeBytes ?? 0,
+    footprintEntries,
+  };
+}
+
 /** Invoke a view function and return its decoded native value. */
 export async function simulateRead<T>(
   contractId: string,
@@ -67,7 +113,7 @@ export async function buildInvokeTx(
   publicKey: string,
   method: string,
   args: xdr.ScVal[] = [],
-): Promise<string> {
+): Promise<{ xdr: string; preview: TransactionPreview }> {
   const account = await server.getAccount(publicKey);
   const contract = new Contract(contractId);
   const tx = new TransactionBuilder(account, {
@@ -78,10 +124,17 @@ export async function buildInvokeTx(
     .setTimeout(180)
     .build();
 
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new Error(sim.error);
+  }
+
+  const preview = buildTransactionPreview(sim, BASE_FEE.toString());
+
   // `prepareTransaction` simulates and injects the Soroban footprint + resource
   // fees. If the simulation reverts, this throws with the contract error.
   const prepared = await server.prepareTransaction(tx);
-  return prepared.toXDR();
+  return { xdr: prepared.toXDR(), preview };
 }
 
 export interface SubmitResult {

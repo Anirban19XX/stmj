@@ -52,6 +52,13 @@ export function useEscrowActions() {
     ];
 
   return {
+    previewCreateEscrow: (params: CreateEscrowParams) => {
+      if (!address) {
+        throw new Error("Connect a wallet first.");
+      }
+      return escrow.previewCreateEscrow(params, address);
+    },
+
     createEscrow: (params: CreateEscrowParams) =>
       execute({
         label: `Create escrow “${params.title}”`,

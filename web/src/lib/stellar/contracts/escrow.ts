@@ -5,7 +5,7 @@
 
 import { config } from "../config";
 import { simulateRead } from "../client";
-import { invokeContract, type Signer } from "./invoke";
+import { invokeContract, previewContractInvoke, type Signer } from "./invoke";
 import {
   toAddress,
   toI128,
@@ -108,6 +108,23 @@ export interface CreateEscrowParams {
   milestones: Milestone[];
   /** Unix seconds. */
   deadline: bigint;
+}
+
+export function previewCreateEscrow(p: CreateEscrowParams, publicKey: string) {
+  return previewContractInvoke(
+    CID(),
+    publicKey,
+    "create_escrow",
+    [
+      toAddress(p.buyer),
+      toAddress(p.seller),
+      toAddress(p.arbiter),
+      toAddress(p.token),
+      toStr(p.title),
+      toMilestoneVec(p.milestones),
+      toU64(p.deadline),
+    ],
+  );
 }
 
 export function createEscrow(p: CreateEscrowParams, publicKey: string, sign: Signer) {

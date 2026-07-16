@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { TransactionPreview } from "@/lib/stellar/client";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -69,6 +70,8 @@ type FormValues = z.infer<typeof schema>;
 
 export function CreateEscrowDialog({ trigger }: { trigger?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [preview, setPreview] = useState<TransactionPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const { address, isConnected } = useWallet();
   const actions = useEscrowActions();
   const defaultArbiter = useSettingsStore((s) => s.defaultArbiter);
@@ -114,24 +117,34 @@ export function CreateEscrowDialog({ trigger }: { trigger?: React.ReactNode }) {
     }
 
     const deadlineSec = BigInt(Math.floor(deadlineDate.getTime() / 1000));
+    const params = {
+      buyer: address,
+      seller: values.seller,
+      arbiter: values.arbiter,
+      token: values.token,
+      title: values.title,
+      deadline: deadlineSec,
+      milestones: values.milestones.map((m) => ({
+        description: m.description,
+        amount: parseAmount(m.amount),
+        released: false,
+      })),
+    };
+
+    setPreviewLoading(true);
+    setPreview(null);
+
     try {
-      await actions.createEscrow({
-        buyer: address,
-        seller: values.seller,
-        arbiter: values.arbiter,
-        token: values.token,
-        title: values.title,
-        deadline: deadlineSec,
-        milestones: values.milestones.map((m) => ({
-          description: m.description,
-          amount: parseAmount(m.amount),
-          released: false,
-        })),
-      });
+      const nextPreview = await actions.previewCreateEscrow(params);
+      setPreview(nextPreview);
+      await actions.createEscrow(params);
       form.reset();
+      setPreview(null);
       setOpen(false);
     } catch {
       /* surfaced by toast */
+    } finally {
+      setPreviewLoading(false);
     }
   }
 
@@ -273,9 +286,39 @@ export function CreateEscrowDialog({ trigger }: { trigger?: React.ReactNode }) {
             <span className="text-lg font-semibold">{formatAmount(total)}</span>
           </div>
 
+          {preview && (
+            <div className="rounded-lg border border-border/70 bg-muted/20 p-3 text-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="font-medium">Estimated transaction preview</span>
+                <span className="text-xs text-muted-foreground">Before wallet confirmation</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                <div>
+                  <div className="font-medium text-foreground">Fee</div>
+                  <div>{formatAmount(BigInt(preview.estimatedFee))} XLM</div>
+                </div>
+                <div>
+                  <div className="font-medium text-foreground">Resource fee</div>
+                  <div>{formatAmount(BigInt(preview.resourceFee))} XLM</div>
+                </div>
+                <div>
+                  <div className="font-medium text-foreground">Read bytes</div>
+                  <div>{preview.readBytes}</div>
+                </div>
+                <div>
+                  <div className="font-medium text-foreground">Write bytes</div>
+                  <div>{preview.writeBytes}</div>
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground">
+                {preview.instructions} instructions • {preview.footprintEntries} footprint entries
+              </div>
+            </div>
+          )}
+
           <DialogFooter>
-            <Button type="submit" disabled={form.formState.isSubmitting || !isConnected}>
-              {form.formState.isSubmitting && (
+            <Button type="submit" disabled={form.formState.isSubmitting || !isConnected || previewLoading}>
+              {(form.formState.isSubmitting || previewLoading) && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               Create & lock funds
