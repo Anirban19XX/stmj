@@ -98,6 +98,10 @@ export async function fetchEscrowsInBatches<T, R>(
         }
 
         const id = ids[currentIndex];
+        if (id === undefined) {
+          return;
+        }
+
         try {
           results[currentIndex] = await worker(id);
         } catch (error) {

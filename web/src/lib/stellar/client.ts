@@ -45,38 +45,64 @@ export interface TransactionPreview {
   footprintEntries: number;
 }
 
+type PreviewResourceLike = {
+  instructions?: number | (() => number);
+  readBytes?: number | (() => number);
+  writeBytes?: number | (() => number);
+  footprint?:
+    | {
+        readOnly?: unknown[] | (() => unknown[]);
+        readWrite?: unknown[] | (() => unknown[]);
+      }
+    | (() => {
+        readOnly?: unknown[] | (() => unknown[]);
+        readWrite?: unknown[] | (() => unknown[]);
+      });
+};
+
+type PreviewTransactionDataLike = {
+  build?: () => { resources?: () => PreviewResourceLike };
+  resources?: PreviewResourceLike | (() => PreviewResourceLike);
+};
+
+function readPreviewValue<T>(value: T | (() => T) | undefined, fallback: T): T {
+  if (typeof value === "function") {
+    return (value as () => T)();
+  }
+  return value ?? fallback;
+}
+
 export function buildTransactionPreview(
   simulation: {
     minResourceFee?: string;
-    transactionData?: {
-      resources?: {
-        instructions?: number;
-        readBytes?: number;
-        writeBytes?: number;
-        footprint?: {
-          readOnly?: unknown[];
-          readWrite?: unknown[];
-        };
-      };
-    };
+    transactionData?: PreviewTransactionDataLike;
   },
   baseFee: string = BASE_FEE.toString(),
 ): TransactionPreview {
   const resourceFee = BigInt(simulation.minResourceFee ?? "0");
   const baseFeeValue = BigInt(baseFee ?? "0");
-  const resources = simulation.transactionData?.resources ?? {};
-  const footprint = resources.footprint ?? {};
+  const txData = simulation.transactionData;
+  const resolvedResources = txData?.build
+    ? txData.build().resources?.()
+    : typeof txData?.resources === "function"
+      ? (txData.resources as () => PreviewResourceLike)()
+      : txData?.resources;
+
+  const resources = resolvedResources ?? {};
+  const footprint = readPreviewValue(resources.footprint, undefined);
+  const readOnlyEntries = readPreviewValue(footprint?.readOnly, []);
+  const readWriteEntries = readPreviewValue(footprint?.readWrite, []);
   const footprintEntries =
-    (Array.isArray(footprint.readOnly) ? footprint.readOnly.length : 0) +
-    (Array.isArray(footprint.readWrite) ? footprint.readWrite.length : 0);
+    (Array.isArray(readOnlyEntries) ? readOnlyEntries.length : 0) +
+    (Array.isArray(readWriteEntries) ? readWriteEntries.length : 0);
 
   return {
     baseFee: baseFeeValue.toString(),
     resourceFee: resourceFee.toString(),
     estimatedFee: (baseFeeValue + resourceFee).toString(),
-    instructions: resources.instructions ?? 0,
-    readBytes: resources.readBytes ?? 0,
-    writeBytes: resources.writeBytes ?? 0,
+    instructions: readPreviewValue(resources.instructions, 0),
+    readBytes: readPreviewValue(resources.readBytes, 0),
+    writeBytes: readPreviewValue(resources.writeBytes, 0),
     footprintEntries,
   };
 }
