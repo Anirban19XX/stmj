@@ -13,13 +13,13 @@ import { truncateAddress } from "@/lib/format";
 export function useWallet() {
   const store = useWalletStore();
 
-  // Restore a previously connected wallet exactly once on mount.
+  // Restore a previously connected wallet once the persisted session becomes available.
   useEffect(() => {
-    if (store.walletId) {
-      void store.restore();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!store.walletId) return;
+    if (store.status === "connected" && Boolean(store.address)) return;
+
+    void store.restore();
+  }, [store.address, store.restore, store.status, store.walletId]);
 
   const isConnected = store.status === "connected" && Boolean(store.address);
   const networkMismatch = store.network !== config.network;
