@@ -37,12 +37,21 @@ const amount = z
     }
   }, "Enter a positive amount");
 
-const schema = z.object({
+const deadline = z
+  .string()
+  .min(1, "Pick a deadline")
+  .refine((value) => {
+    if (!value) return false;
+    const parsed = new Date(value);
+    return !Number.isNaN(parsed.getTime()) && parsed.getTime() > Date.now();
+  }, "Pick a deadline in the future");
+
+export const schema = z.object({
   title: z.string().min(3, "At least 3 characters").max(64),
   seller: addr,
   arbiter: addr,
   token: addr,
-  deadline: z.string().min(1, "Pick a deadline"),
+  deadline,
   milestones: z
     .array(z.object({ description: z.string().min(1, "Required"), amount }))
     .min(1, "Add at least one milestone"),
@@ -84,7 +93,14 @@ export function CreateEscrowDialog({ trigger }: { trigger?: React.ReactNode }) {
 
   async function onSubmit(values: FormValues) {
     if (!address) return;
-    const deadlineSec = BigInt(Math.floor(new Date(values.deadline).getTime() / 1000));
+
+    const deadlineDate = new Date(values.deadline);
+    if (Number.isNaN(deadlineDate.getTime()) || deadlineDate.getTime() <= Date.now()) {
+      form.setError("deadline", { type: "validate", message: "Pick a deadline in the future" });
+      return;
+    }
+
+    const deadlineSec = BigInt(Math.floor(deadlineDate.getTime() / 1000));
     try {
       await actions.createEscrow({
         buyer: address,
