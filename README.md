@@ -52,7 +52,7 @@ The project is currently deployed on Stellar Testnet.
 ├── contracts/          # Soroban smart contract workspace
 ├── web/                # Next.js frontend
 ├── scripts/            # deployment and contract automation scripts
-├── deployments/        # deployment metadata
+├── deployments/        # deployment 
 ├── docs/               # deployment and security documentation
 └── .github/workflows/  # CI/CD workflows
 ```
