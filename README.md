@@ -98,7 +98,7 @@ cd web && npm run test
 
 ## Deployment
 
-Use the provided scripts for local/testnet deployment:
+Use the provided scripts for local or testnet deployment:
 
 ```bash
 ./scripts/deploy_testnet.sh
