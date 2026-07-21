@@ -36,6 +36,9 @@ The workspace contains two Soroban contracts:
 - Escrow contract: manages escrow creation, milestone release, refunds, cancellations, disputes, and settlement
 - Registry contract: tracks reputation, fees, and shared marketplace state
 
+## Demo Video Link
+- https://drive.google.com/file/d/1V5Py5bjqWitOHCOw8Kw3iNtTzi25292p/view?usp=sharing
+
 ## Current testnet deployment
 
 The project is currently deployed on Stellar Testnet.
